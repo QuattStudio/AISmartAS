@@ -1,0 +1,38 @@
+================================================================================
+[App]
+  Name           : App-Unknown
+  Version        : 0.0.0
+  Build Profile  : Unknown
+  Build ID       : Dev
+  Active Backend : None
+
+[ToolChain]
+  Compiler       : GCC (15.1.0)
+  C Standard     : C23
+  Flags          : Not specified
+  CRT Mode       : Win32 / MSVCRT
+  Pointer Width  : 64-bit
+  Endianness     : Little-Endian
+
+[Platform]
+  OS             : Windows
+  Backends       : None
+
+[Hardware]
+  Architecture   : x86_64
+  CPU            : Intel(R) Core(TM) i7-7600U CPU @ 2.80GHz
+  ISA / SIMD     : SSE2 SSE3 FMA AVX AVX2
+  Cores          : 2 Physical / 4 Logical
+  RAM            : 8067 MB
+  Cache Line     : 64 bytes
+  Page Size      : 4096 bytes
+
+[Main / Session]
+  File Name      : resources/logs/app_20261124_195805.log
+  Session        : 20261124_195805
+  PID            : 8880
+  Min Level      : TRACE
+================================================================================
+
+[2026-11-24 19:58:05] [INFO   ] [<file>:0] [<module>] WELCOME to AI powered Smart Attendence System
+[2026-11-24 19:58:05] [ERROR  ] [<file>:0] [<module>] Trying to close camera when it wasn't opened yet

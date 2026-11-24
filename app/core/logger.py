@@ -356,6 +356,8 @@ if __name__ == "__main__":
 
         # Literal '%' or '{}' in plain text won't confuse C formatting
         log.info("100% raw string with literal {braces} untouched")
+        log.trace("trace")
+        log.fatal("fatal")
 
         log.flush()
         log.shutdown()
