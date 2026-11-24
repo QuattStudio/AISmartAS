@@ -28,11 +28,13 @@
   Page Size      : 4096 bytes
 
 [Main / Session]
-  File Name      : resources/logs/app_20261124_195732.log
-  Session        : 20261124_195732
-  PID            : 13336
+  File Name      : resources/logs/app_20261124_204257.log
+  Session        : 20261124_204257
+  PID            : 4676
   Min Level      : TRACE
 ================================================================================
 
-[2026-11-24 19:57:32] [INFO   ] [<file>:0] [<module>] WELCOME to AI powered Smart Attendence System
-[2026-11-24 19:57:32] [ERROR  ] [<file>:0] [<module>] Trying to close camera when it wasn't opened yet
+[2026-11-24 20:42:57] [INFO   ] [core/logger.py:322] [<module>] WELCOME to AI powered Smart Attendence System
+[2026-11-24 20:42:59] [INFO   ] [core/logger.py:322] [<module>] Camera open successfully
+[2026-11-24 20:42:59] [INFO   ] [core/logger.py:322] [<module>] Press q to exit
+[2026-11-24 20:43:00] [INFO   ] [core/logger.py:322] [<module>] Camera closed successfully
