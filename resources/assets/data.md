@@ -1,0 +1,1 @@
+This folder stores all assets like images, logos, videos if their is, audio etc

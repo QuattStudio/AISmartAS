@@ -1,0 +1,1 @@
+This folder stores all logs from testing to deployment
