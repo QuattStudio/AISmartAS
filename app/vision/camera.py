@@ -1,95 +1,36 @@
 
-import json
-import math
 import threading
 import time
 
 import cv2
 import numpy as np
-from deepface import DeepFace
 
-from core.logger import logger
+from app.core.logger import logger
+from app.vision.recogination import referenceEmbedding, cosine_distance
+from app.vision.network import Network
 
-
-def get_reference_embedding(image_path: str, detector_backend: str = "opencv") -> list[float]:
-    results = DeepFace.represent(
-        img_path=image_path,
-        model_name="Facenet512",
-        detector_backend=detector_backend,
-        enforce_detection=True,
-        align=True,
-    )
-    return results[0]["embedding"]
-
-
-def load_reference_embeddings(path: str = "resources/data/mock.json") -> dict[str, np.ndarray]:
-    with open(path, "r", encoding="utf-8") as file:
-        data = json.load(file)
-
-    # Support either {"Alice": [512 floats], ...} or a single [512 floats] list
-    if isinstance(data, dict):
-        return {
-            name: np.asarray(vec, dtype=np.float32)
-            for name, vec in data.items()
-            if isinstance(vec, list) and len(vec) > 0
-        }
-    if isinstance(data, list) and len(data) > 0 and isinstance(data[0], (int, float)):
-        return {"Known": np.asarray(data, dtype=np.float32)}
-
-    return {}
-
-
-def get_live_embedding(frame: np.ndarray, detector_backend: str = "opencv"):
-    results = DeepFace.represent(
-        img_path=frame,
-        model_name="Facenet512",
-        detector_backend=detector_backend,
-        enforce_detection=False,
-        align=True,
-    )
-
-    faces = []
-    for item in results:
-        conf = float(item.get("face_confidence", 0.0))
-        area = item.get("facial_area", {})
-        emb = item.get("embedding")
-
-        x = int(area.get("x", 0))
-        y = int(area.get("y", 0))
-        w = int(area.get("w", 0))
-        h = int(area.get("h", 0))
-
-        if conf > 0.5 and w > 20 and h > 20 and emb is not None:
-            faces.append((x, y, w, h, np.asarray(emb, dtype=np.float32)))
-    return faces
-
-
-def cosine_distance(emb_a: np.ndarray, emb_b: np.ndarray) -> float:
-    dot = float(np.dot(emb_a, emb_b))
-    norm_a = math.sqrt(float(np.dot(emb_a, emb_a)))
-    norm_b = math.sqrt(float(np.dot(emb_b, emb_b)))
-    if norm_a == 0.0 or norm_b == 0.0:
-        return 1.0
-    return 1.0 - (dot / (norm_a * norm_b))
 
 
 class Camera:
     def __init__(
         self,
         index: int = 0,
-        detectorBackend: str = "opencv",
         aiScale: float = 0.5,
         threshold: float = 0.30,
         dbPath: str = "resources/data/mock.json",
     ):
+        if aiScale <= 0:
+            raise ValueError("aiScale must be greater than 0")
+
         self._index = index
-        self._detectorBackend = detectorBackend
         self._aiScale = aiScale
         self._threshold = threshold
         self._dbPath = dbPath
         self._camera = None
 
         self._running = False
+        self._enrolling = False
+        self._reload_db = False
 
         self._frame = None
         self._faces = []
@@ -113,8 +54,9 @@ class Camera:
         cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-        self._camera = cam
-        self._running = True
+        with self._lock:
+            self._camera = cam
+            self._running = True
 
         self._captureThread = threading.Thread(
             target=self._capture_loop,
@@ -135,10 +77,18 @@ class Camera:
 
     def _capture_loop(self):
         while self._running:
-            if self._camera is None:
+            with self._lock:
+                cam = self._camera
+                enrolling = self._enrolling
+
+            if cam is None:
                 break
 
-            ret, frame = self._camera.read()
+            if enrolling:
+                time.sleep(0.02)
+                continue
+
+            ret, frame = cam.read()
             if not ret or frame is None:
                 time.sleep(0.005)
                 continue
@@ -147,33 +97,46 @@ class Camera:
                 self._frame = frame
 
     def _match_face(self, live_emb: np.ndarray, known_db: dict[str, np.ndarray]) -> tuple[str, float]:
+        if not known_db:
+            return "Unknown", 1.0
+
         best_name = "Unknown"
-        best_dist = 1.0
+        best_dist = float("inf")
 
         for name, ref_emb in known_db.items():
             dist = cosine_distance(live_emb, ref_emb)
             if dist < best_dist:
                 best_dist = dist
-                if dist < self._threshold:
-                    best_name = name
+                best_name = name
 
-        return best_name, best_dist
+        return (best_name, best_dist) if best_dist < self._threshold else ("Unknown", best_dist)
 
     def _ai_loop(self):
         inv_scale = 1.0 / self._aiScale
 
         try:
-            known_db = load_reference_embeddings(self._dbPath)
+            known_db = referenceEmbedding.load(self._dbPath)
+
         except Exception as e:
             logger.error(f"Failed to load reference embeddings: {e}")
             known_db = {}
 
         while self._running:
             with self._lock:
+                if self._reload_db:
+                    try:
+                        known_db = referenceEmbedding.load(self._dbPath)
+                        logger.info(f"Reloaded reference DB ({len(known_db)} entries)")
+
+                    except Exception as e:
+                        logger.error(f"Failed to reload reference embeddings: {e}")
+                    self._reload_db = False
+
+                enrolling = self._enrolling
                 frame = None if self._frame is None else self._frame.copy()
 
-            if frame is None:
-                time.sleep(0.01)
+            if enrolling or frame is None:
+                time.sleep(0.02)
                 continue
 
             if self._aiScale != 1.0:
@@ -191,13 +154,10 @@ class Camera:
                 self._aiBusy = True
 
             try:
-                live_faces = get_live_embedding(
-                    smallFrame,
-                    detector_backend=self._detectorBackend,
-                )
+                live_faces = referenceEmbedding.getLiveEmbedding(smallFrame)
 
                 matched_faces = []
-                for x, y, w, h, emb in live_faces:  
+                for x, y, w, h, emb in live_faces:
                     sx = int(x * inv_scale)
                     sy = int(y * inv_scale)
                     sw = int(w * inv_scale)
@@ -207,7 +167,8 @@ class Camera:
                     matched_faces.append((sx, sy, sw, sh, label, dist))
 
                 with self._lock:
-                    self._faces = matched_faces
+                    if not self._enrolling:
+                        self._faces = matched_faces
 
             except Exception as e:
                 logger.error(f"Face recognition failed: {e}")
@@ -217,7 +178,76 @@ class Camera:
                 with self._lock:
                     self._aiBusy = False
 
-            time.sleep(0.005)
+            time.sleep(0.01)
+
+    def _enroll_current_face(self, snapshot: np.ndarray, faces_snapshot: list) -> None:
+        """Prompt terminal for a name and save embedding if not already recorded."""
+        with self._lock:
+            self._enrolling = True
+
+        try:
+            # Prefer an "Unknown" face if present; otherwise pick the largest detected face
+            target_face = None
+            unknown_faces = [f for f in faces_snapshot if f[4] == "Unknown"]
+            if unknown_faces:
+                target_face = max(unknown_faces, key=lambda f: f[2] * f[3])
+            elif faces_snapshot:
+                target_face = max(faces_snapshot, key=lambda f: f[2] * f[3])
+
+            if target_face is None:
+                logger.warning("No face detected on screen to register")
+                print("[Enroll] No face detected. Position your face clearly in frame and press 'r'.")
+                return
+
+            x, y, w, h, label, dist = target_face
+            if label != "Unknown":
+                print(f"[Enroll] Face already matches '{label}' (distance={dist:.2f}).")
+                ans = input("Save under a new name anyway? (y/N): ").strip().lower()
+                if ans != "y":
+                    print("[Enroll] Cancelled.")
+                    return
+
+            # Crop with slight padding on full-res snapshot for cleaner embedding
+            pad_x = int(w * 0.15)
+            pad_y = int(h * 0.15)
+            fh, fw = snapshot.shape[:2]
+            x1 = max(0, x - pad_x)
+            y1 = max(0, y - pad_y)
+            x2 = min(fw, x + w + pad_x)
+            y2 = min(fh, y + h + pad_y)
+            crop = snapshot[y1:y2, x1:x2]
+
+            name = input("Enter name for this face: ").strip()
+            if not name:
+                print("[Enroll] Empty name — skipped.")
+                return
+
+            # Extract full-resolution embedding from crop (fallback to full frame if needed)
+            faces = referenceEmbedding.getLiveEmbedding(crop)
+
+            if not faces:
+                faces = referenceEmbedding.getLiveEmbedding(snapshot)
+
+            if not faces:
+                print("[Enroll] Could not extract face embedding. Try better lighting.")
+                return
+
+            best_emb = max(faces, key=lambda item: item[2] * item[3])[4]
+            referenceEmbedding.saveEmbedding(name=name, embedding=best_emb, path=self._dbPath)
+
+            with self._lock:
+                self._reload_db = True
+
+            print(f"[Enroll] Saved '{name}' to {self._dbPath}")
+            logger.info(f"Registered new face '{name}' into {self._dbPath}")
+
+        except Exception as e:
+            logger.error(f"Enrollment failed: {e}")
+            print(f"[Enroll] Error: {e}")
+
+        finally:
+            with self._lock:
+                self._enrolling = False
 
     def show(self):
         try:
@@ -226,6 +256,7 @@ class Camera:
                     frame = None if self._frame is None else self._frame.copy()
                     faces = list(self._faces)
                     ai_busy = self._aiBusy
+                    enrolling = self._enrolling
 
                 if frame is None:
                     time.sleep(0.01)
@@ -250,29 +281,41 @@ class Camera:
                         2,
                     )
 
-                status_text = "AI: Scanning..." if ai_busy else "AI: Ready"
+                if enrolling:
+                    status_text = "AI: Enrolling (check terminal)..."
+                    status_color = (255, 200, 0)
+                elif ai_busy:
+                    status_text = "AI: Scanning..."
+                    status_color = (0, 255, 255)
+                else:
+                    status_text = "AI: Ready | Press 'r' to register"
+                    status_color = (0, 255, 0)
+
                 cv2.putText(
                     frame,
                     status_text,
                     (10, 25),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.6,
-                    (0, 255, 255) if ai_busy else (0, 255, 0),
+                    status_color,
                     2,
                 )
 
                 cv2.imshow("Webcam Feed", frame)
 
-                if cv2.waitKey(1) & 0xFF == ord("q"):
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
                     break
+                if key == ord("r") and not enrolling:
+                    self._enroll_current_face(frame, faces)
         finally:
             self.close()
 
     def close(self):
-        if not self._running and self._camera is None:
-            return True
-
-        self._running = False
+        with self._lock:
+            if not self._running and self._camera is None:
+                return True
+            self._running = False
 
         if self._captureThread is not None and self._captureThread.is_alive():
             self._captureThread.join(timeout=1.0)
@@ -280,9 +323,10 @@ class Camera:
         if self._aiThread is not None and self._aiThread.is_alive():
             self._aiThread.join(timeout=2.0)
 
-        if self._camera is not None:
-            self._camera.release()
-            self._camera = None
+        with self._lock:
+            if self._camera is not None:
+                self._camera.release()
+                self._camera = None
 
         cv2.destroyAllWindows()
         logger.info("Camera closed successfully")
@@ -290,5 +334,5 @@ class Camera:
 
 
 # camera variable is used for main.py
-camera = Camera(detectorBackend="opencv", aiScale=0.5)
+camera = Camera(aiScale=0.5)
 

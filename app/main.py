@@ -1,21 +1,23 @@
-from core.logger import logger
-from core import constants
-from vision.camera import camera
+from app.core.logger import logger
+from app.core import constants
+from app.vision.camera import camera
+from app.vision.recogination import referenceEmbedding
 
 import sys
+import json
 
 
 
 
 
 def main() -> int:
-    exitCode = constants.exit_status.SUCCESS
+    exitCode = constants.ExitStatus.SUCCESS
 
 
     # initialize the logger sub-system
     if not logger.initialize("resources/logs/app.log"):
         print("Logging sub-system failed to initialized!")
-        return constants.exit_status.FAILURE
+        return constants.ExitStatus.FAILURE
 
 
 
@@ -24,7 +26,7 @@ def main() -> int:
 
     try:
         if not camera.open():
-            exitCode = constants.exit_status.FAILURE
+            exitCode = constants.ExitStatus.FAILURE
             return exitCode
         
 
@@ -33,7 +35,7 @@ def main() -> int:
 
     except Exception:
         logger.error("Unexpected error occurred")
-        exitCode = constants.exit_status.FAILURE
+        exitCode = constants.ExitStatus.FAILURE
         raise Exception
 
 
@@ -41,7 +43,7 @@ def main() -> int:
         try:
             # Initialize camera vision
             if not camera.close():
-                exitCode = constants.exit_status.FAILURE
+                exitCode = constants.ExitStatus.FAILURE
 
 
         finally:
@@ -55,20 +57,8 @@ def main() -> int:
 
 
 
-from deepface import DeepFace
-import json
 
 
-def get_reference_embedding(image_path: str, detector_backend: str = "opencv"):
-    # Load a clear photo of the known person and extract their 512-D vector once
-    results = DeepFace.represent(
-        img_path=image_path,
-        model_name="Facenet512",
-        detector_backend=detector_backend,
-        enforce_detection=True,
-        align=True,
-    )
-    return results[0]["embedding"]  # list of 512 floats
 
 if __name__ == "__main__":
     # data = {
