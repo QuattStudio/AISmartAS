@@ -44,7 +44,7 @@ def main() -> int:
             # Initialize camera vision
             if not camera.close():
                 exitCode = constants.ExitStatus.FAILURE
-
+ 
 
         finally:
             logger.shutdown()
