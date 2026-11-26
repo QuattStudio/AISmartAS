@@ -1,83 +1,42 @@
-from core.logger import logger
-from core import constants
-from vision.camera import camera
-from vision.recogination import referenceEmbedding
-from database.mockdb import DataBase
-
-
 import sys
-import json
 
-
-
+from core import constants
+from core.logger import logger
+from core.paths import project_path
+from frontend.app import app as web_app
+from vision.camera import camera
 
 
 def main() -> int:
-    exitCode = constants.ExitStatus.SUCCESS
-
-
-    # initialize the logger sub-system
-    if not logger.initialize("resources/logs/app.log"):
-        print("Logging sub-system failed to initialized!")
+    if not logger.initialize(str(project_path("resources", "logs", "app.log"))):
+        print("Logging sub-system failed to initialize!")
         return constants.ExitStatus.FAILURE
 
-
-
-    logger.info("WELCOME to AI powered Smart Attendence System")
-
-    database_system = DataBase()
+    logger.info("WELCOME to AI powered Smart Attendance System")
 
     try:
         if not camera.open():
-            exitCode = constants.ExitStatus.FAILURE
-            return exitCode
-        
-        db = database_system.get()
-        
-        db.commit()
-        db.close()
+            return constants.ExitStatus.FAILURE
 
-        
-        camera.show()
-
-
-    except Exception:
-        logger.error("Unexpected error occurred")
-        exitCode = constants.ExitStatus.FAILURE
-        raise Exception
-
-
+        logger.info("Attendance web app available at http://127.0.0.1:8000")
+        web_app.run(
+            host="127.0.0.1",
+            port=8000,
+            debug=False,
+            threaded=True,
+            use_reloader=False,
+        )
+    except KeyboardInterrupt:
+        logger.info("Attendance web app stopped")
+    except Exception as error:
+        logger.error(f"Unexpected error occurred: {error}")
+        return constants.ExitStatus.FAILURE
     finally:
-        try:
-            # Initialize camera vision
-            if not camera.close():
-                exitCode = constants.ExitStatus.FAILURE
- 
+        camera.close()
+        logger.shutdown()
 
-        finally:
-            logger.shutdown()
-
-
-
-    return exitCode
-
-
-
-
-
-
+    return constants.ExitStatus.SUCCESS
 
 
 if __name__ == "__main__":
-    # data = {
-    #     "shaury": get_reference_embedding("resources/assets/shaury.jpg"),
-    #     "aditya": get_reference_embedding("resources/assets/aditya.jpg"),
-    # }
-    # with open("resources/data/mock.json", "w", encoding="utf-8") as file:
-    #     json.dump(data, file, indent=2)
-
-    
     sys.exit(main())
-
-
-
