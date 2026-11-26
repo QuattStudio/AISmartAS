@@ -1,7 +1,9 @@
-from app.core.logger import logger
-from app.core import constants
-from app.vision.camera import camera
-from app.vision.recogination import referenceEmbedding
+from core.logger import logger
+from core import constants
+from vision.camera import camera
+from vision.recogination import referenceEmbedding
+from database.mockdb import DataBase
+
 
 import sys
 import json
@@ -23,13 +25,19 @@ def main() -> int:
 
     logger.info("WELCOME to AI powered Smart Attendence System")
 
+    database_system = DataBase()
 
     try:
         if not camera.open():
             exitCode = constants.ExitStatus.FAILURE
             return exitCode
         
+        db = database_system.get()
+        
+        db.commit()
+        db.close()
 
+        
         camera.show()
 
 

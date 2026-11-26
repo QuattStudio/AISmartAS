@@ -1,5 +1,5 @@
 from deepface import DeepFace
-from app.core.logger import logger
+from core.logger import logger
 
 import os
 import json
@@ -56,7 +56,7 @@ class ReferenceEmbedding:
         return results[0]["embedding"]
 
 
-    def load(self, path: str = "resources/data/mock.json") -> dict[str, np.ndarray]:
+    def load(self, path: str = "resources/database/mock.json") -> dict[str, np.ndarray]:
         if not os.path.exists(path):
             return {}
 
@@ -100,7 +100,7 @@ class ReferenceEmbedding:
         self,
         name: str,
         embedding: np.ndarray,
-        path: str = "resources/data/mock.json",
+        path: str = "resources/database/mock.json",
     ) -> None:
         clean_name = name.strip()
         if not clean_name:

@@ -1,5 +1,5 @@
 import requests as req
-from app.core.logger import logger
+from core.logger import logger
 
 
 
@@ -33,7 +33,7 @@ class Network:
     # data that is going to send
 
     {
-        "student_name
+        "student_name"
     }
 
 

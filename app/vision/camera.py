@@ -5,9 +5,9 @@ import time
 import cv2
 import numpy as np
 
-from app.core.logger import logger
-from app.vision.recogination import referenceEmbedding, cosine_distance
-from app.vision.network import Network
+from core.logger import logger
+from vision.recogination import referenceEmbedding, cosine_distance
+from vision.network import Network
 
 
 
@@ -17,7 +17,7 @@ class Camera:
         index: int = 0,
         aiScale: float = 0.5,
         threshold: float = 0.30,
-        dbPath: str = "resources/data/mock.json",
+        dbPath: str = "resources/database/mock.json",
     ):
         if aiScale <= 0:
             raise ValueError("aiScale must be greater than 0")
