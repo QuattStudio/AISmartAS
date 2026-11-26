@@ -5,10 +5,15 @@ from core.logger import logger
 from core.paths import project_path
 from frontend.app import app as web_app
 from vision.camera import camera
+from core.metadata import app_meta
+
+
+
 
 
 def main() -> int:
-    if not logger.initialize(str(project_path("resources", "logs", "app.log"))):
+    
+    if not logger.initialize(str(project_path("resources", "logs", "app.log")), userMeta=app_meta):
         print("Logging sub-system failed to initialize!")
         return constants.ExitStatus.FAILURE
 
