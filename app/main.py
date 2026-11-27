@@ -19,6 +19,14 @@ def main() -> int:
 
     logger.info("WELCOME to AI powered Smart Attendance System")
 
+
+
+
+
+
+
+
+
     try:
         if not camera.open():
             return constants.ExitStatus.FAILURE

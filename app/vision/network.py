@@ -5,7 +5,9 @@ import requests as req
 from core.logger import logger
 
 
-LOCAL_HOST_URL = "http://127.0.0.1:5000"
+# LOCAL_HOST_URL = "http://127.0.0.1:5000"
+LOCAL_HOST_URL = "http://192.168.1.67:5000"
+
 
 
 class Network:
